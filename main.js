@@ -4,29 +4,34 @@ const audioPlayer = document.getElementById('audio-player');
 const playBtn = document.getElementById('play-btn');
 const loopBtn = document.getElementById('loop-btn');
 const songTitle = document.getElementById('song-title');
-const playlistDiv = document.getElementById('playlist');
+const mainView = document.getElementById('main-view');
+const tabAll = document.getElementById('tab-all');
+const tabPlaylists = document.getElementById('tab-playlists');
+const fileInputWrapper = document.getElementById('file-input-wrapper');
+const modal = document.getElementById('playlist-modal');
+const modalList = document.getElementById('modal-list');
+const modalClose = document.getElementById('modal-close');
 
 // --- グローバル変数 ---
 let db;
 let currentObjectUrl = null;
 
-// プレイリスト管理用の変数
+// 再生リスト管理
 let playlistData = []; 
 let currentIndex = -1; 
 
+// 現在の画面モード ('all' = すべての曲, 'playlists' = プレイリスト一覧, 'folder' = プレイリストの中身)
+let currentViewMode = 'all'; 
+let currentFolderId = null; // 今開いているプレイリストID
+
 // --- 2. データベース初期化 ---
-// 【変更】バージョンを 1 から 2 に上げました
 const request = indexedDB.open('MusicPlayerDB', 2);
 
 request.onupgradeneeded = function(event) {
     db = event.target.result;
-    
-    // 既存の songs ストア
     if (!db.objectStoreNames.contains('songs')) {
         db.createObjectStore('songs', { keyPath: 'id', autoIncrement: true });
     }
-
-    // 【追加】新しい playlists ストアを作成
     if (!db.objectStoreNames.contains('playlists')) {
         db.createObjectStore('playlists', { keyPath: 'id', autoIncrement: true });
     }
@@ -34,16 +39,160 @@ request.onupgradeneeded = function(event) {
 
 request.onsuccess = function(event) {
     db = event.target.result;
-    console.log('DB接続成功 (v2)');
-    // 最初はすべての曲を表示する
-    loadPlaylist(); 
+    console.log('DB接続成功');
+    // 初期表示は「すべての曲」
+    switchTab('all');
 };
 
-request.onerror = function() {
-    alert('データベースを開けませんでした');
-};
+// --- 3. UI操作（タブ切り替え） ---
+tabAll.addEventListener('click', () => switchTab('all'));
+tabPlaylists.addEventListener('click', () => switchTab('playlists'));
 
-// --- 3. 曲の保存処理 ---
+function switchTab(mode) {
+    currentViewMode = mode;
+
+    // タブの見た目を切り替え
+    if (mode === 'all') {
+        tabAll.classList.add('active');
+        tabPlaylists.classList.remove('active');
+        fileInputWrapper.style.display = 'block'; // 追加ボタン表示
+        loadAllSongs(); // 全曲読み込み
+    } else {
+        tabAll.classList.remove('active');
+        tabPlaylists.classList.add('active');
+        fileInputWrapper.style.display = 'none'; // 追加ボタン非表示
+        loadPlaylistsView(); // プレイリスト一覧読み込み
+    }
+}
+
+// --- 4. 「すべての曲」表示処理 ---
+function loadAllSongs() {
+    const transaction = db.transaction(['songs'], 'readonly');
+    const store = transaction.objectStore('songs');
+    const request = store.getAll();
+
+    request.onsuccess = function() {
+        // 再生リストを全曲で更新（※再生中にタブを変えても止まらないようにする工夫が必要ですが、今回はシンプルに上書き）
+        // 理想的には「表示用リスト」と「再生用リスト」を分けるべきですが、複雑になるため
+        // ここでは「画面を切り替えると再生リストも切り替わる」仕様にします。
+        playlistData = request.result;
+        renderSongList(true); // true = 「＋」ボタンを表示する
+    };
+}
+
+function renderSongList(showAddBtn) {
+    mainView.innerHTML = '';
+
+    if (playlistData.length === 0) {
+        mainView.innerHTML = '<p style="color: #888; text-align:center; padding:20px;">曲がありません</p>';
+        return;
+    }
+
+    playlistData.forEach(function(song, index) {
+        const item = document.createElement('div');
+        item.className = 'playlist-item';
+        if (index === currentIndex) item.classList.add('playing');
+
+        // 曲名
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'song-name';
+        nameSpan.textContent = song.name;
+        nameSpan.addEventListener('click', () => playSongAtIndex(index));
+
+        item.appendChild(nameSpan);
+
+        // 「＋」ボタン（プレイリストへ追加）
+        if (showAddBtn) {
+            const addBtn = document.createElement('button');
+            addBtn.textContent = '➕';
+            addBtn.className = 'action-btn';
+            addBtn.title = "プレイリストに追加";
+            addBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                openAddToPlaylistModal(song.id);
+            });
+            item.appendChild(addBtn);
+        }
+
+        // 削除ボタン
+        const deleteBtn = document.createElement('button');
+        deleteBtn.textContent = '🗑';
+        deleteBtn.className = 'action-btn';
+        deleteBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (currentViewMode === 'folder') {
+                // プレイリストから除外する処理（今回は省略、実装難易度高いため）
+                alert('プレイリストからの削除機能は未実装です');
+            } else {
+                deleteSong(song.id);
+            }
+        });
+        item.appendChild(deleteBtn);
+
+        mainView.appendChild(item);
+    });
+}
+
+// --- 5. 「プレイリスト一覧」表示処理 ---
+function loadPlaylistsView() {
+    const transaction = db.transaction(['playlists'], 'readonly');
+    const store = transaction.objectStore('playlists');
+    const request = store.getAll();
+
+    request.onsuccess = function() {
+        const playlists = request.result;
+        renderFolders(playlists);
+    };
+}
+
+function renderFolders(playlists) {
+    mainView.innerHTML = '';
+
+    // 「新規作成」ボタン
+    const createBtn = document.createElement('button');
+    createBtn.className = 'create-playlist-btn';
+    createBtn.textContent = '➕ 新しいプレイリストを作成';
+    createBtn.addEventListener('click', () => {
+        const name = prompt('プレイリスト名を入力してください:');
+        if (name) createNewPlaylist(name);
+    });
+    mainView.appendChild(createBtn);
+
+    // フォルダ一覧
+    playlists.forEach(pl => {
+        const folder = document.createElement('div');
+        folder.className = 'folder-item';
+        folder.innerHTML = `
+            <div class="folder-icon">📂</div>
+            <div class="folder-info">
+                <div style="font-weight:bold;">${pl.name}</div>
+                <div style="font-size:0.8rem; color:#888;">${pl.songIds.length}曲</div>
+            </div>
+            <div style="font-size:1.5rem;">›</div>
+        `;
+        folder.addEventListener('click', () => openPlaylistFolder(pl.id));
+        mainView.appendChild(folder);
+    });
+}
+
+// --- 6. プレイリストの中身を開く処理 ---
+function openPlaylistFolder(id) {
+    currentViewMode = 'folder';
+    currentFolderId = id;
+
+    // UI: 「戻るボタン」を表示
+    mainView.innerHTML = '';
+    const backBtn = document.createElement('button');
+    backBtn.className = 'back-btn';
+    backBtn.textContent = '← プレイリスト一覧に戻る';
+    backBtn.addEventListener('click', () => switchTab('playlists'));
+    mainView.appendChild(backBtn);
+
+    // 読み込み
+    loadSongsFromPlaylist(id);
+}
+
+// --- 7. 曲の保存 ---
 fileInput.addEventListener('change', function(event) {
     const file = event.target.files[0];
     if (!file) return;
@@ -52,80 +201,20 @@ fileInput.addEventListener('change', function(event) {
     const store = transaction.objectStore('songs');
     const songData = { name: file.name, blob: file, created: new Date() };
 
-    const addRequest = store.add(songData);
-
-    addRequest.onsuccess = function() {
-        loadPlaylist(); // 全曲リストを再読み込み
+    store.add(songData).onsuccess = function() {
+        if (currentViewMode === 'all') loadAllSongs();
     };
-
     fileInput.value = '';
 });
 
-// --- 4. プレイリスト（全曲）の読み込みと表示 ---
-function loadPlaylist() {
-    const transaction = db.transaction(['songs'], 'readonly');
-    const store = transaction.objectStore('songs');
-    const getAllRequest = store.getAll();
-
-    getAllRequest.onsuccess = function() {
-        const songs = getAllRequest.result;
-        playlistData = songs; // グローバル変数を更新
-        renderPlaylist();
-    };
-}
-
-function renderPlaylist() {
-    playlistDiv.innerHTML = '';
-
-    if (playlistData.length === 0) {
-        playlistDiv.innerHTML = '<p style="color: #888; text-align:center;">保存された曲はありません</p>';
-        return;
-    }
-
-    playlistData.forEach(function(song, index) {
-        const item = document.createElement('div');
-        item.className = 'playlist-item';
-
-        if (index === currentIndex) {
-            item.classList.add('playing');
-        }
-
-        const nameSpan = document.createElement('span');
-        nameSpan.className = 'song-name';
-        nameSpan.textContent = song.name;
-        
-        nameSpan.addEventListener('click', () => {
-            playSongAtIndex(index);
-        });
-
-        const deleteBtn = document.createElement('button');
-        deleteBtn.textContent = '🗑';
-        deleteBtn.className = 'delete-btn';
-        deleteBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            // 曲の削除は少し複雑になるため、全曲表示モードの時のみ許可するなどの制御が理想ですが
-            // ここでは簡易的に songs ストアから削除するようにしています
-            deleteSong(song.id);
-        });
-
-        item.appendChild(nameSpan);
-        item.appendChild(deleteBtn);
-        playlistDiv.appendChild(item);
-    });
-}
-
-// --- 5. 指定した番号の曲を再生する機能 ---
+// --- 8. 再生機能（変更なし） ---
 function playSongAtIndex(index) {
-    if (index < 0 || index >= playlistData.length) {
-        console.log("再生リストの範囲外です。停止します。");
-        return;
-    }
+    if (index < 0 || index >= playlistData.length) return;
 
     currentIndex = index;
     const songInfo = playlistData[currentIndex];
 
-    // 再生時には常に songs ストアから Blob を取得する
-    // (プレイリスト機能で songInfo は ID と Name しか持っていない可能性があるため)
+    // Blobを取得して再生
     const transaction = db.transaction(['songs'], 'readonly');
     const store = transaction.objectStore('songs');
     const getRequest = store.get(songInfo.id);
@@ -133,215 +222,164 @@ function playSongAtIndex(index) {
     getRequest.onsuccess = function() {
         const song = getRequest.result;
         if (song) {
-            if (currentObjectUrl) {
-                URL.revokeObjectURL(currentObjectUrl);
-            }
-
-            const fileUrl = URL.createObjectURL(song.blob);
-            currentObjectUrl = fileUrl;
-
+            if (currentObjectUrl) URL.revokeObjectURL(currentObjectUrl);
+            currentObjectUrl = URL.createObjectURL(song.blob);
+            
             songTitle.textContent = song.name;
-            audioPlayer.src = fileUrl;
+            audioPlayer.src = currentObjectUrl;
             
-            renderPlaylist(); 
+            // UI更新（再生中クラスの付け替え）
+            const items = document.querySelectorAll('.playlist-item');
+            items.forEach((item, idx) => {
+                if (idx === index) item.classList.add('playing');
+                else item.classList.remove('playing');
+            });
+            
             playBtn.disabled = false;
-            
             playAudio();
-
-            // Media Session API 設定
-            if ('mediaSession' in navigator) {
-                navigator.mediaSession.metadata = new MediaMetadata({
-                    title: song.name,
-                    artist: 'My Player',
-                    album: 'Local Music'
-                });
-
-                navigator.mediaSession.setActionHandler('play', function() { playAudio(); });
-                navigator.mediaSession.setActionHandler('pause', function() { pauseAudio(); });
-                navigator.mediaSession.setActionHandler('previoustrack', function() {
-                    if (currentIndex > 0) playSongAtIndex(currentIndex - 1);
-                });
-                navigator.mediaSession.setActionHandler('nexttrack', function() {
-                    if (currentIndex < playlistData.length - 1) playSongAtIndex(currentIndex + 1);
-                });
-            }
+            setupMediaSession(song.name);
         }
     };
 }
 
-// --- 6. 連続再生の制御 ---
-audioPlayer.addEventListener('ended', function() {
-    const nextIndex = currentIndex + 1;
-    if (nextIndex < playlistData.length) {
-        playSongAtIndex(nextIndex);
-    } else {
-        playBtn.textContent = '▶️';
-    }
-});
+// --- 9. プレイリスト追加モーダル機能 ---
+function openAddToPlaylistModal(songId) {
+    modal.style.display = 'flex';
+    modalList.innerHTML = '読み込み中...';
 
-// --- 7. 基本操作 ---
-playBtn.addEventListener('click', function() {
-    if (audioPlayer.paused) {
-        playAudio();
-    } else {
-        pauseAudio();
-    }
-});
-
-function playAudio() {
-    audioPlayer.play().catch(e => console.log('再生エラー:', e));
-    playBtn.textContent = '⏸️';
-}
-
-function pauseAudio() {
-    audioPlayer.pause();
-    playBtn.textContent = '▶️';
-}
-
-loopBtn.addEventListener('click', function() {
-    audioPlayer.loop = !audioPlayer.loop;
-    if (audioPlayer.loop) {
-        loopBtn.textContent = '🔁 ON';
-        loopBtn.classList.add('active-loop');
-    } else {
-        loopBtn.textContent = '🔁 OFF';
-        loopBtn.classList.remove('active-loop');
-    }
-});
-
-function deleteSong(id) {
-    if (!confirm('この曲を削除しますか？')) return;
-
-    const transaction = db.transaction(['songs'], 'readwrite');
-    const store = transaction.objectStore('songs');
-    const deleteRequest = store.delete(id);
-
-    deleteRequest.onsuccess = function() {
-        // 現在表示しているリストの種類によって再読み込み処理を変えるのが理想ですが
-        // 一旦基本の全曲リスト再読み込みを行います
-        loadPlaylist();
-    };
-}
-
-// ==========================================
-// ▼▼▼ 以下、新しく追加したプレイリスト機能 ▼▼▼
-// ==========================================
-
-/**
- * ① 新しいプレイリストを作成する関数
- */
-function createNewPlaylist(playlistName) {
-    if (!playlistName) return;
-
-    const transaction = db.transaction(['playlists'], 'readwrite');
+    const transaction = db.transaction(['playlists'], 'readonly');
     const store = transaction.objectStore('playlists');
-
-    const newPlaylist = {
-        name: playlistName,
-        songIds: [], 
-        created: new Date()
-    };
-
-    const request = store.add(newPlaylist);
+    const request = store.getAll();
 
     request.onsuccess = function() {
-        alert(`プレイリスト「${playlistName}」を作成しました！`);
-    };
+        const playlists = request.result;
+        modalList.innerHTML = '';
 
-    request.onerror = function() {
-        console.error('プレイリスト作成失敗');
+        if (playlists.length === 0) {
+            modalList.innerHTML = '<p>プレイリストがありません</p>';
+        }
+
+        playlists.forEach(pl => {
+            const btn = document.createElement('button');
+            btn.textContent = `📂 ${pl.name}`;
+            btn.addEventListener('click', () => {
+                addSongToPlaylist(pl.id, songId);
+                modal.style.display = 'none';
+            });
+            modalList.appendChild(btn);
+        });
     };
 }
 
-/**
- * ② 指定したプレイリストに、曲を追加する関数
- */
-function addSongToPlaylist(playlistId, songId) {
-    // IDは数値型である必要があるので変換
-    playlistId = Number(playlistId);
-    songId = Number(songId);
+modalClose.addEventListener('click', () => {
+    modal.style.display = 'none';
+});
 
+// --- 10. 共通ロジック（DB操作など） ---
+
+function createNewPlaylist(name) {
     const transaction = db.transaction(['playlists'], 'readwrite');
     const store = transaction.objectStore('playlists');
+    store.add({ name: name, songIds: [], created: new Date() }).onsuccess = function() {
+        loadPlaylistsView();
+    };
+}
 
+function addSongToPlaylist(playlistId, songId) {
+    const transaction = db.transaction(['playlists'], 'readwrite');
+    const store = transaction.objectStore('playlists');
     const getRequest = store.get(playlistId);
 
     getRequest.onsuccess = function() {
         const playlist = getRequest.result;
-
-        if (!playlist) {
-            console.error('プレイリストが見つかりません');
-            return;
-        }
-
         if (!playlist.songIds.includes(songId)) {
             playlist.songIds.push(songId);
-            
-            const updateRequest = store.put(playlist);
-            updateRequest.onsuccess = function() {
-                console.log(`プレイリスト「${playlist.name}」に曲を追加しました`);
-                alert(`プレイリスト「${playlist.name}」に曲を追加しました！`);
-            };
+            store.put(playlist).onsuccess = () => alert(`「${playlist.name}」に追加しました`);
         } else {
-            alert('この曲は既に追加されています');
+            alert('既に追加されています');
         }
     };
 }
 
-/**
- * ③ プレイリストの中身を取得して再生準備する関数
- */
 function loadSongsFromPlaylist(playlistId) {
-    playlistId = Number(playlistId);
-    
     const transaction = db.transaction(['playlists', 'songs'], 'readonly');
-    const playlistStore = transaction.objectStore('playlists');
+    const plStore = transaction.objectStore('playlists');
     const songStore = transaction.objectStore('songs');
 
-    const playlistRequest = playlistStore.get(playlistId);
+    plStore.get(playlistId).onsuccess = function(e) {
+        const playlist = e.target.result;
+        if (!playlist) return;
 
-    playlistRequest.onsuccess = function() {
-        const playlist = playlistRequest.result;
-        if (!playlist || playlist.songIds.length === 0) {
-            alert('このプレイリストは空か、存在しません');
-            return;
-        }
-
-        console.log(`プレイリスト「${playlist.name}」を読み込み中...`);
-        
-        // 曲IDリストから実際の曲データを取得
         const promises = playlist.songIds.map(id => {
-            return new Promise((resolve) => {
-                const songRequest = songStore.get(id);
-                songRequest.onsuccess = () => resolve(songRequest.result);
+            return new Promise(resolve => {
+                songStore.get(id).onsuccess = (ev) => resolve(ev.target.result);
             });
         });
 
         Promise.all(promises).then(songs => {
-            // 削除された曲などを除外
-            const validSongs = songs.filter(song => song !== undefined);
+            playlistData = songs.filter(s => s !== undefined);
+            // プレイリスト曲一覧を表示（＋ボタンは非表示）
             
-            // 再生リストをこのプレイリストの内容に書き換え
-            playlistData = validSongs;
-            currentIndex = -1; 
+            // ヘッダーを追加（どのフォルダか分かるように）
+            const header = document.createElement('div');
+            header.style.padding = '10px';
+            header.style.marginBottom = '10px';
+            header.style.borderBottom = '1px solid #555';
+            header.innerHTML = `<strong>📂 ${playlist.name}</strong> (${playlistData.length}曲)`;
+            mainView.appendChild(header);
+
+            // 曲リストを描画（既存の関数を利用するが、appendするので注意）
+            // renderSongListは innerHTML='' してしまうので、ここでは手動で描画するか
+            // renderSongListを改造する。今回はシンプルにここで描画ロジックを回します。
             
-            renderPlaylist(); 
-            playSongAtIndex(0); // 1曲目から再生開始
-            
-            console.log(`プレイリスト「${playlist.name}」の再生を開始します`);
+            if (playlistData.length === 0) {
+                 const msg = document.createElement('p');
+                 msg.textContent = '曲がありません';
+                 msg.style.textAlign = 'center';
+                 mainView.appendChild(msg);
+            }
+
+            playlistData.forEach((song, index) => {
+                const item = document.createElement('div');
+                item.className = 'playlist-item';
+                item.innerHTML = `<span class="song-name">${song.name}</span>`;
+                item.querySelector('.song-name').addEventListener('click', () => playSongAtIndex(index));
+                mainView.appendChild(item);
+            });
         });
     };
 }
 
-/**
- * デバッグ用：全てのプレイリストをコンソールに表示
- */
-function showAllPlaylists() {
-    const transaction = db.transaction(['playlists'], 'readonly');
-    const store = transaction.objectStore('playlists');
-    const request = store.getAll();
-    request.onsuccess = function() {
-        console.log('保存されているプレイリスト一覧:', request.result);
-        alert('コンソール(F12)に一覧を表示しました');
-    };
+function deleteSong(id) {
+    if (!confirm('本当に削除しますか？')) return;
+    const t = db.transaction(['songs'], 'readwrite');
+    t.objectStore('songs').delete(id).onsuccess = () => loadAllSongs();
 }
+
+// Media Session, Play/Pause, Loop logic
+function setupMediaSession(title) {
+    if ('mediaSession' in navigator) {
+        navigator.mediaSession.metadata = new MediaMetadata({ title: title });
+        navigator.mediaSession.setActionHandler('play', playAudio);
+        navigator.mediaSession.setActionHandler('pause', pauseAudio);
+        navigator.mediaSession.setActionHandler('previoustrack', () => {
+             if (currentIndex > 0) playSongAtIndex(currentIndex - 1);
+        });
+        navigator.mediaSession.setActionHandler('nexttrack', () => {
+             if (currentIndex < playlistData.length - 1) playSongAtIndex(currentIndex + 1);
+        });
+    }
+}
+
+playBtn.addEventListener('click', () => audioPlayer.paused ? playAudio() : pauseAudio());
+function playAudio() { audioPlayer.play(); playBtn.textContent = '⏸️'; }
+function pauseAudio() { audioPlayer.pause(); playBtn.textContent = '▶️'; }
+audioPlayer.addEventListener('ended', () => {
+    if (currentIndex < playlistData.length - 1) playSongAtIndex(currentIndex + 1);
+    else playBtn.textContent = '▶️';
+});
+loopBtn.addEventListener('click', () => {
+    audioPlayer.loop = !audioPlayer.loop;
+    loopBtn.textContent = audioPlayer.loop ? '🔁 ON' : '🔁 OFF';
+    loopBtn.classList.toggle('active-loop');
+});

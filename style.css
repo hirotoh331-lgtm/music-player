@@ -1,32 +1,32 @@
 body {
-    margin: 0;
-    padding: 0;
-    background-color: #1a1a1a;
-    color: #ffffff;
     font-family: sans-serif;
-    height: 100vh;
+    background-color: #121212;
+    color: #ffffff;
+    margin: 0;
     display: flex;
     justify-content: center;
-    align-items: center;
+    min-height: 100vh;
 }
 
 .player-container {
-    text-align: center;
-    width: 90%;
-    max-width: 400px;
-    height: 90vh;
+    width: 100%;
+    max-width: 600px; /* スマホで見やすい幅 */
+    padding: 20px;
+    box-sizing: border-box;
     display: flex;
     flex-direction: column;
 }
 
-#song-title {
+h2 {
+    text-align: center;
     font-size: 1.2rem;
     margin-bottom: 20px;
-    min-height: 1.5em;
-    font-weight: bold;
-    color: #1db954; /* 曲名を緑色に */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
+/* コントロールボタン */
 .controls {
     display: flex;
     justify-content: center;
@@ -35,70 +35,185 @@ body {
     margin-bottom: 20px;
 }
 
-button {
-    background-color: #333;
-    color: white;
+.btn-large {
+    font-size: 2rem;
+    background: none;
     border: none;
-    border-radius: 50%;
     cursor: pointer;
-    transition: background 0.2s;
+    color: white;
 }
 
-button:active { background-color: #555; }
-.btn-large { width: 80px; height: 80px; font-size: 30px; }
-.btn-small { width: 60px; height: 60px; font-size: 14px; border-radius: 30px; }
-.active-loop { background-color: #1db954; color: #000; }
-button:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-large:disabled {
+    color: #555;
+}
 
-.playlist-container {
+.btn-small {
+    background: #333;
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 20px;
+    cursor: pointer;
+    font-size: 0.9rem;
+}
+
+.active-loop {
+    background-color: #1DB954; /* 緑色 */
+    color: black;
+    font-weight: bold;
+}
+
+/* --- タブのデザイン --- */
+.tabs {
+    display: flex;
+    border-bottom: 2px solid #333;
+    margin-bottom: 15px;
+}
+
+.tab-btn {
+    flex: 1;
+    background: none;
+    border: none;
+    color: #888;
+    padding: 10px;
+    font-size: 1rem;
+    cursor: pointer;
+    border-bottom: 3px solid transparent;
+}
+
+.tab-btn.active {
+    color: white;
+    font-weight: bold;
+    border-bottom: 3px solid #1DB954;
+}
+
+/* --- リスト表示エリア --- */
+.main-view {
     flex-grow: 1;
     overflow-y: auto;
-    background-color: #222;
-    border-radius: 10px;
-    padding: 10px;
     margin-bottom: 20px;
-    text-align: left;
 }
 
 .playlist-item {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 12px 10px; /* 少しタップしやすく広く */
+    padding: 12px;
     border-bottom: 1px solid #333;
-    cursor: pointer;
 }
 
-/* 再生中の曲のデザイン */
 .playlist-item.playing {
-    background-color: #333;
-    border-left: 4px solid #1db954; /* 左端に緑の線 */
-    color: #1db954;
+    background-color: #1f1f1f;
+    border-left: 4px solid #1DB954;
 }
 
 .song-name {
+    flex-grow: 1;
+    cursor: pointer;
+    margin-right: 10px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 75%;
 }
 
-.delete-btn {
-    background-color: #d32f2f;
-    width: 30px;
-    height: 30px;
-    border-radius: 5px;
-    font-size: 12px;
-    margin-left: 10px;
+.action-btn {
+    background: none;
     border: none;
+    cursor: pointer;
+    font-size: 1.2rem;
+    padding: 5px;
+    margin-left: 5px;
+}
+
+/* --- プレイリスト（フォルダ）のデザイン --- */
+.folder-item {
+    display: flex;
+    align-items: center;
+    padding: 15px;
+    background-color: #222;
+    margin-bottom: 10px;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+.folder-icon {
+    font-size: 1.5rem;
+    margin-right: 15px;
+}
+
+.folder-info {
+    flex-grow: 1;
+}
+
+.create-playlist-btn {
+    width: 100%;
+    padding: 15px;
+    background-color: #333;
+    color: white;
+    border: 2px dashed #555;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    cursor: pointer;
+}
+
+.back-btn {
+    width: 100%;
+    padding: 10px;
+    background-color: #444;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    margin-bottom: 15px;
+    text-align: left;
+    padding-left: 15px;
+}
+
+/* --- ファイル追加ボタン --- */
+.file-input-wrapper {
+    text-align: center;
+    margin-top: auto;
+    padding-top: 10px;
 }
 
 .add-music-btn {
     display: inline-block;
-    padding: 10px 20px;
-    background-color: #1db954;
+    background-color: #1DB954;
     color: white;
-    border-radius: 20px;
+    padding: 12px 24px;
+    border-radius: 25px;
     cursor: pointer;
     font-weight: bold;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+}
+
+/* --- モーダル（ポップアップ） --- */
+.modal {
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background-color: rgba(0,0,0,0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.modal-content {
+    background-color: #222;
+    padding: 20px;
+    border-radius: 10px;
+    width: 80%;
+    max-width: 300px;
+    text-align: center;
+}
+
+.modal-list button {
+    display: block;
+    width: 100%;
+    padding: 12px;
+    margin: 5px 0;
+    background-color: #333;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    text-align: left;
 }

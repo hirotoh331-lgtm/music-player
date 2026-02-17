@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>My Music Player</title>
     <link rel="stylesheet" href="style.css">
-    
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1a1a1a">
 </head>
@@ -13,31 +12,34 @@
 
     <div class="player-container">
         <h2 id="song-title">曲を選択してください</h2>
-        
         <div class="controls">
             <button id="loop-btn" class="btn-small">🔁 OFF</button>
             <button id="play-btn" class="btn-large" disabled>▶️</button>
         </div>
-        
-        <div id="playlist" class="playlist-container"></div>
-        
-        <div class="file-input-wrapper">
+
+        <audio id="audio-player"></audio>
+
+        <div class="tabs">
+            <button id="tab-all" class="tab-btn active">🎵 すべての曲</button>
+            <button id="tab-playlists" class="tab-btn">📂 プレイリスト</button>
+        </div>
+
+        <div id="main-view" class="main-view">
+            </div>
+
+        <div id="file-input-wrapper" class="file-input-wrapper">
             <label for="file-input" class="add-music-btn">➕ 曲を追加保存</label>
             <input type="file" id="file-input" accept="audio/*" style="display: none;">
         </div>
+    </div>
 
-        <div style="margin-top: 20px; border-top: 1px solid #555; padding-top: 10px;">
-            <h3 style="font-size: 1rem; margin: 0 0 10px 0;">プレイリスト機能テスト</h3>
-            <div style="display: flex; gap: 10px; justify-content: center;">
-                <button onclick="createNewPlaylist(prompt('プレイリスト名を入力:'))" class="btn-small" style="width:auto; border-radius:5px; padding:5px 15px; font-size: 12px;">
-                    新規作成
-                </button>
-                <button onclick="showAllPlaylists()" class="btn-small" style="width:auto; border-radius:5px; padding:5px 15px; font-size: 12px;">
-                    一覧確認(コンソール)
-                </button>
-            </div>
+    <div id="playlist-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <h3>プレイリストに追加</h3>
+            <div id="modal-list" class="modal-list">
+                </div>
+            <button id="modal-close" class="btn-small" style="margin-top:15px;">キャンセル</button>
         </div>
-        <audio id="audio-player"></audio>
     </div>
 
     <script src="main.js"></script>
@@ -46,9 +48,7 @@
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', function() {
                 navigator.serviceWorker.register('./sw.js').then(function(registration) {
-                    console.log('ServiceWorker登録成功:', registration.scope);
-                }, function(err) {
-                    console.log('ServiceWorker登録失敗:', err);
+                    console.log('ServiceWorker registered');
                 });
             });
         }
