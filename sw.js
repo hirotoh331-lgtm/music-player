@@ -1,5 +1,5 @@
-// バージョンを v4 に変更（HTML/JSを書き換えたので数字を上げます）
-const CACHE_NAME = 'music-player-v4';
+// バージョンを v5 に変更（HTML/JSを書き換えたので数字を上げます）
+const CACHE_NAME = 'music-player-v5';
 
 // オフラインでも開けるようにしたいファイル一覧
 const urlsToCache = [
