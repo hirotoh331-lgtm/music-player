@@ -10,11 +10,26 @@ body {
 
 .player-container {
     width: 100%;
-    max-width: 600px; /* スマホで見やすい幅 */
+    max-width: 600px;
     padding: 20px;
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
+    position: relative;
+}
+
+/* インストールボタン */
+.install-btn {
+    width: 100%;
+    padding: 10px;
+    background-color: #1DB954;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    font-weight: bold;
+    margin-bottom: 20px;
+    cursor: pointer;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.5);
 }
 
 h2 {
@@ -24,6 +39,7 @@ h2 {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    color: #1DB954;
 }
 
 /* コントロールボタン */
@@ -36,29 +52,27 @@ h2 {
 }
 
 .btn-large {
-    font-size: 2rem;
+    font-size: 2.5rem;
     background: none;
     border: none;
     cursor: pointer;
     color: white;
 }
 
-.btn-large:disabled {
-    color: #555;
-}
+.btn-large:disabled { color: #555; }
 
 .btn-small {
     background: #333;
     color: white;
     border: none;
-    padding: 8px 12px;
+    padding: 8px 15px;
     border-radius: 20px;
     cursor: pointer;
     font-size: 0.9rem;
 }
 
 .active-loop {
-    background-color: #1DB954; /* 緑色 */
+    background-color: #1DB954;
     color: black;
     font-weight: bold;
 }
@@ -92,6 +106,9 @@ h2 {
     flex-grow: 1;
     overflow-y: auto;
     margin-bottom: 20px;
+    /* スクロールバーのデザイン(Chrome用) */
+    scrollbar-width: thin;
+    scrollbar-color: #333 #121212;
 }
 
 .playlist-item {
@@ -105,6 +122,7 @@ h2 {
 .playlist-item.playing {
     background-color: #1f1f1f;
     border-left: 4px solid #1DB954;
+    color: #1DB954;
 }
 
 .song-name {
@@ -123,9 +141,11 @@ h2 {
     font-size: 1.2rem;
     padding: 5px;
     margin-left: 5px;
+    opacity: 0.7;
 }
+.action-btn:hover { opacity: 1; }
 
-/* --- プレイリスト（フォルダ）のデザイン --- */
+/* --- プレイリスト（フォルダ） --- */
 .folder-item {
     display: flex;
     align-items: center;
@@ -136,21 +156,15 @@ h2 {
     cursor: pointer;
 }
 
-.folder-icon {
-    font-size: 1.5rem;
-    margin-right: 15px;
-}
-
-.folder-info {
-    flex-grow: 1;
-}
+.folder-icon { font-size: 1.5rem; margin-right: 15px; }
+.folder-info { flex-grow: 1; }
 
 .create-playlist-btn {
     width: 100%;
     padding: 15px;
-    background-color: #333;
-    color: white;
-    border: 2px dashed #555;
+    background-color: #222;
+    color: #ccc;
+    border: 2px dashed #444;
     border-radius: 8px;
     margin-bottom: 20px;
     cursor: pointer;
@@ -158,14 +172,15 @@ h2 {
 
 .back-btn {
     width: 100%;
-    padding: 10px;
-    background-color: #444;
+    padding: 12px;
+    background-color: #333;
     color: white;
     border: none;
     border-radius: 5px;
     margin-bottom: 15px;
     text-align: left;
     padding-left: 15px;
+    font-weight: bold;
 }
 
 /* --- ファイル追加ボタン --- */
@@ -186,7 +201,7 @@ h2 {
     box-shadow: 0 4px 6px rgba(0,0,0,0.3);
 }
 
-/* --- モーダル（ポップアップ） --- */
+/* --- モーダル --- */
 .modal {
     position: fixed;
     top: 0; left: 0; width: 100%; height: 100%;
