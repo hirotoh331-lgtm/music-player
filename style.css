@@ -14,15 +14,17 @@ body {
     text-align: center;
     width: 90%;
     max-width: 400px;
-    height: 90vh; /* 画面の高さの90%を使う */
+    height: 90vh;
     display: flex;
-    flex-direction: column; /* 縦並びにする */
+    flex-direction: column;
 }
 
 #song-title {
     font-size: 1.2rem;
     margin-bottom: 20px;
-    min-height: 1.5em; /* 文字がなくても高さを確保 */
+    min-height: 1.5em;
+    font-weight: bold;
+    color: #1db954; /* 曲名を緑色に */
 }
 
 .controls {
@@ -42,21 +44,15 @@ button {
     transition: background 0.2s;
 }
 
-button:active {
-    background-color: #555;
-}
-
+button:active { background-color: #555; }
 .btn-large { width: 80px; height: 80px; font-size: 30px; }
 .btn-small { width: 60px; height: 60px; font-size: 14px; border-radius: 30px; }
 .active-loop { background-color: #1db954; color: #000; }
 button:disabled { opacity: 0.5; cursor: not-allowed; }
 
-/* --- ここから下が新しく追加したリスト用CSS --- */
-
-/* リスト全体の設定 */
 .playlist-container {
-    flex-grow: 1; /* 余ったスペースを全部使う */
-    overflow-y: auto; /* 曲が増えたらスクロールする */
+    flex-grow: 1;
+    overflow-y: auto;
     background-color: #222;
     border-radius: 10px;
     padding: 10px;
@@ -64,42 +60,39 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
     text-align: left;
 }
 
-/* リストの1行ごとの設定 */
 .playlist-item {
     display: flex;
-    justify-content: space-between; /* 曲名と削除ボタンを左右に離す */
+    justify-content: space-between;
     align-items: center;
-    padding: 10px;
+    padding: 12px 10px; /* 少しタップしやすく広く */
     border-bottom: 1px solid #333;
     cursor: pointer;
 }
 
-/* 再生中の曲を目立たせる */
+/* 再生中の曲のデザイン */
 .playlist-item.playing {
     background-color: #333;
-    color: #1db954; /* 緑色 */
-    font-weight: bold;
+    border-left: 4px solid #1db954; /* 左端に緑の線 */
+    color: #1db954;
 }
 
-/* 曲名部分 */
 .song-name {
     white-space: nowrap;
     overflow: hidden;
-    text-overflow: ellipsis; /* 長すぎたら...にする */
-    max-width: 70%;
+    text-overflow: ellipsis;
+    max-width: 75%;
 }
 
-/* 削除ボタン */
 .delete-btn {
-    background-color: #d32f2f; /* 赤色 */
+    background-color: #d32f2f;
     width: 30px;
     height: 30px;
     border-radius: 5px;
     font-size: 12px;
     margin-left: 10px;
+    border: none;
 }
 
-/* 追加ボタンのデザイン */
 .add-music-btn {
     display: inline-block;
     padding: 10px 20px;

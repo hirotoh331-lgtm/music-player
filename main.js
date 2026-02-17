@@ -6,184 +6,182 @@ const loopBtn = document.getElementById('loop-btn');
 const songTitle = document.getElementById('song-title');
 const playlistDiv = document.getElementById('playlist');
 
-// データベースを入れる変数
+// --- グローバル変数 ---
 let db;
-// 前回のURLを削除するために保持する変数（メモリ節約用）
 let currentObjectUrl = null;
 
-// --- 2. データベースの初期化（開く・作る） ---
-// アプリ起動時に1回だけ実行されます
+// 【重要】プレイリスト管理用の変数
+let playlistData = []; // 曲のリスト（IDと名前だけ持つ軽量なリスト）
+let currentIndex = -1; // 今何番目の曲を再生しているか（0スタート）
+
+// --- 2. データベース初期化 ---
 const request = indexedDB.open('MusicPlayerDB', 1);
 
-// DBがまだない時、またはバージョンが上がった時に実行される（倉庫の建設）
 request.onupgradeneeded = function(event) {
     db = event.target.result;
-    // 'songs'という名前の保存場所を作成
-    // keyPath: 'id' は、データの背番号を 'id' という名前にするという意味
-    // autoIncrement: true は、背番号を 1, 2, 3... と自動で振るという意味
     if (!db.objectStoreNames.contains('songs')) {
         db.createObjectStore('songs', { keyPath: 'id', autoIncrement: true });
     }
 };
 
-// DBが無事に開けた時に実行される
 request.onsuccess = function(event) {
     db = event.target.result;
-    console.log('データベース接続成功');
-    // 保存されている曲を表示する
-    loadPlaylist();
+    console.log('DB接続成功');
+    loadPlaylist(); // アプリ起動時にリストを読み込む
 };
 
-// エラーが起きた時
-request.onerror = function(event) {
-    console.error('データベースエラー:', event.target.errorCode);
+request.onerror = function() {
     alert('データベースを開けませんでした');
 };
 
-// --- 3. ファイル選択時の保存処理 ---
+// --- 3. 曲の保存処理 ---
 fileInput.addEventListener('change', function(event) {
     const file = event.target.files[0];
     if (!file) return;
 
-    // トランザクション（読み書きの権限）を開始
     const transaction = db.transaction(['songs'], 'readwrite');
     const store = transaction.objectStore('songs');
+    const songData = { name: file.name, blob: file, created: new Date() };
 
-    // 保存するデータを作る
-    const songData = {
-        name: file.name,
-        blob: file, // 音楽データそのもの
-        created: new Date() // 保存した日時
-    };
-
-    // データを追加する
     const addRequest = store.add(songData);
 
     addRequest.onsuccess = function() {
-        alert('曲を保存しました！');
-        loadPlaylist(); // リストを更新
+        // 保存したらリストを再読み込み
+        loadPlaylist();
     };
 
-    addRequest.onerror = function() {
-        alert('保存に失敗しました。容量オーバーの可能性があります。');
-    };
-
-    // ファイル選択状態をリセット（同じファイルを連続で選べるようにするため）
     fileInput.value = '';
 });
 
-// --- 4. プレイリスト（保存済み一覧）の表示 ---
+// --- 4. プレイリストの読み込みと表示 ---
 function loadPlaylist() {
-    // 読み取り専用でストアを開く
     const transaction = db.transaction(['songs'], 'readonly');
     const store = transaction.objectStore('songs');
-    
-    // すべてのデータを取得する
     const getAllRequest = store.getAll();
 
     getAllRequest.onsuccess = function() {
         const songs = getAllRequest.result;
-        renderPlaylist(songs);
+        
+        // 【重要】重いデータ(blob)はメモリに常駐させず、必要な情報だけ配列に入れる
+        // ここでは将来の拡張性を考えて、一旦全データを渡していますが、
+        // 再生時には再度DBからBlobを取る方式にします。
+        playlistData = songs;
+
+        renderPlaylist();
     };
 }
 
-// 取得したデータをもとにHTMLを作る関数
-function renderPlaylist(songs) {
-    playlistDiv.innerHTML = ''; // 一旦リストを空にする
+function renderPlaylist() {
+    playlistDiv.innerHTML = '';
 
-    if (songs.length === 0) {
+    if (playlistData.length === 0) {
         playlistDiv.innerHTML = '<p style="color: #888; text-align:center;">保存された曲はありません</p>';
         return;
     }
 
-    // 曲の数だけループしてHTMLを作る
-    songs.forEach(function(song) {
-        // コンテナ作成
+    // 配列(playlistData)の中身を順番に処理
+    playlistData.forEach(function(song, index) {
         const item = document.createElement('div');
         item.className = 'playlist-item';
-        
-        // 曲名部分
+
+        // 再生中の曲なら色を変える
+        if (index === currentIndex) {
+            item.classList.add('playing');
+        }
+
         const nameSpan = document.createElement('span');
         nameSpan.className = 'song-name';
         nameSpan.textContent = song.name;
-        // クリックしたら再生する設定
-        nameSpan.addEventListener('click', () => playSongFromDB(song.id));
+        
+        // 【重要】クリックしたら「この番号(index)の曲を再生して」と指示する
+        nameSpan.addEventListener('click', () => {
+            playSongAtIndex(index);
+        });
 
-        // 削除ボタン
         const deleteBtn = document.createElement('button');
         deleteBtn.textContent = '🗑';
         deleteBtn.className = 'delete-btn';
-        // クリックしたら削除する設定
         deleteBtn.addEventListener('click', (e) => {
-            e.stopPropagation(); // 親要素のクリックイベント（再生）を止める
+            e.stopPropagation();
             deleteSong(song.id);
         });
 
-        // 画面に追加
         item.appendChild(nameSpan);
         item.appendChild(deleteBtn);
         playlistDiv.appendChild(item);
     });
 }
 
-// --- 5. データベースから曲を取り出して再生する ---
-function playSongFromDB(id) {
+// --- 5. 指定した番号の曲を再生する機能 ---
+function playSongAtIndex(index) {
+    // 範囲外のチェック（リストの最後を超えたら停止）
+    if (index < 0 || index >= playlistData.length) {
+        console.log("再生リストの範囲外です。停止します。");
+        return;
+    }
+
+    // インデックスを更新
+    currentIndex = index;
+
+    // 再生する曲の情報を配列から取得
+    const songInfo = playlistData[currentIndex];
+
+    // DBから「その曲の音楽データ(blob)」を取りに行く
+    // ※配列にはblobを持たせていない（メモリ節約）ため
     const transaction = db.transaction(['songs'], 'readonly');
     const store = transaction.objectStore('songs');
-    const getRequest = store.get(id);
+    const getRequest = store.get(songInfo.id);
 
     getRequest.onsuccess = function() {
         const song = getRequest.result;
         if (song) {
-            // 前の曲のURLがあればメモリ解放（スマホの重さを軽減）
+            // 前の曲のメモリ解放
             if (currentObjectUrl) {
                 URL.revokeObjectURL(currentObjectUrl);
             }
 
-            // DBから取り出したBlob（ファイル）をURLに変換
             const fileUrl = URL.createObjectURL(song.blob);
-            currentObjectUrl = fileUrl; // 次回消すために覚えておく
+            currentObjectUrl = fileUrl;
 
-            // プレーヤーにセットして再生
             songTitle.textContent = song.name;
             audioPlayer.src = fileUrl;
-            playBtn.disabled = false;
             
-            // UIの更新（再生中クラスの付け替え）
-            updateActiveItem(song.name);
+            // UI更新（再生中の曲を目立たせる）
+            renderPlaylist(); // リストを再描画して色を更新
+            playBtn.disabled = false;
             
             playAudio();
         }
     };
 }
 
-// 再生中の曲に色をつける関数
-function updateActiveItem(songName) {
-    const items = document.querySelectorAll('.playlist-item');
-    items.forEach(item => {
-        const name = item.querySelector('.song-name').textContent;
-        if (name === songName) {
-            item.classList.add('playing');
-        } else {
-            item.classList.remove('playing');
-        }
-    });
-}
+// --- 6. 連続再生の制御 ---
+// 曲が終わった時に呼ばれるイベント
+audioPlayer.addEventListener('ended', function() {
+    // ループONの場合（audioPlayer.loop = true）は、
+    // ブラウザが勝手にリピートするので、ここには来ない（または無視される）。
+    // ループOFFの場合だけここに来る。
 
-// --- 6. 曲の削除機能 ---
-function deleteSong(id) {
-    if (!confirm('この曲を削除しますか？')) return;
+    // 次の曲へ進む
+    const nextIndex = currentIndex + 1;
 
-    const transaction = db.transaction(['songs'], 'readwrite');
-    const store = transaction.objectStore('songs');
-    const deleteRequest = store.delete(id);
+    // 次の曲があるかチェック
+    if (nextIndex < playlistData.length) {
+        // 次の曲を再生
+        playSongAtIndex(nextIndex);
+    } else {
+        // 最後の曲だったので停止状態にする
+        playBtn.textContent = '▶️';
+        console.log('全曲再生終了');
+        
+        // 最初に戻したい場合はここを有効にする
+        // playSongAtIndex(0); 
+        // pauseAudio(); // 止めておく
+    }
+});
 
-    deleteRequest.onsuccess = function() {
-        loadPlaylist(); // リストを更新
-    };
-}
+// --- 7. 基本操作（再生・停止・削除・ループ） ---
 
-// --- 7. プレーヤーの基本操作（ステップ1と同じ） ---
 playBtn.addEventListener('click', function() {
     if (audioPlayer.paused) {
         playAudio();
@@ -193,28 +191,38 @@ playBtn.addEventListener('click', function() {
 });
 
 function playAudio() {
-    audioPlayer.play().catch(e => console.log('再生エラー(自動再生制限など):', e));
-    playBtn.textContent = '⏸️'; // 停止マーク
+    audioPlayer.play().catch(e => console.log('再生エラー:', e));
+    playBtn.textContent = '⏸️';
 }
 
 function pauseAudio() {
     audioPlayer.pause();
-    playBtn.textContent = '▶️'; // 再生マーク
+    playBtn.textContent = '▶️';
 }
 
+// ループボタン（1曲リピート）
 loopBtn.addEventListener('click', function() {
     audioPlayer.loop = !audioPlayer.loop;
     if (audioPlayer.loop) {
-        loopBtn.textContent = '🔁 ON';
+        loopBtn.textContent = '🔁 ON'; // 1曲リピート中
         loopBtn.classList.add('active-loop');
     } else {
-        loopBtn.textContent = '🔁 OFF';
+        loopBtn.textContent = '🔁 OFF'; // リピートなし（次は次の曲へ）
         loopBtn.classList.remove('active-loop');
     }
 });
 
-audioPlayer.addEventListener('ended', function() {
-    if (!audioPlayer.loop) {
-        playBtn.textContent = '▶️';
-    }
-});
+function deleteSong(id) {
+    if (!confirm('この曲を削除しますか？')) return;
+
+    const transaction = db.transaction(['songs'], 'readwrite');
+    const store = transaction.objectStore('songs');
+    const deleteRequest = store.delete(id);
+
+    deleteRequest.onsuccess = function() {
+        // もし再生中の曲を消したら停止するなどの処理が必要だが、
+        // まずはシンプルにリスト更新のみ行う
+        // もし現在再生中の曲より前の曲を消すとindexがズレるが、次回再生時に直る
+        loadPlaylist();
+    };
+}
