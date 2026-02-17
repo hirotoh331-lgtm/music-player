@@ -1,5 +1,5 @@
-// バージョンを v3 に変更（これでスマホが更新を検知します）
-const CACHE_NAME = 'music-player-v3';
+// バージョンを v4 に変更（HTML/JSを書き換えたので数字を上げます）
+const CACHE_NAME = 'music-player-v4';
 
 // オフラインでも開けるようにしたいファイル一覧
 const urlsToCache = [
@@ -40,7 +40,7 @@ self.addEventListener('activate', function(event) {
     return self.clients.claim();
 });
 
-// 3. 通信時（ここを「ネットワーク優先」に変更しました）
+// 3. 通信時（ネットワーク優先）
 self.addEventListener('fetch', function(event) {
     event.respondWith(
         // まずインターネットに取りに行く

@@ -20,7 +20,7 @@ let playlistData = [];
 let currentIndex = -1; 
 let currentViewMode = 'all'; // 'all', 'playlists', 'folder'
 let currentFolderId = null;
-let deferredPrompt; // インストールイベント保存用
+let deferredPrompt; 
 
 // --- 2. データベース初期化 ---
 const request = indexedDB.open('MusicPlayerDB', 2);
@@ -41,24 +41,17 @@ request.onsuccess = function(event) {
     switchTab('all');
 };
 
-// --- 3. インストールボタン機能 (PWA) ---
+// --- 3. インストールボタン (PWA) ---
 window.addEventListener('beforeinstallprompt', (e) => {
-    // Chromeが自動で出すインストールバナーをキャンセル
     e.preventDefault();
-    // イベントを保存しておく
     deferredPrompt = e;
-    // ボタンを表示する
     installBtn.style.display = 'block';
 });
 
 installBtn.addEventListener('click', async () => {
     if (!deferredPrompt) return;
-    // インストールプロンプトを表示
     deferredPrompt.prompt();
-    // ユーザーの選択結果を待つ
     const { outcome } = await deferredPrompt.userChoice;
-    console.log(`インストール結果: ${outcome}`);
-    // イベントは一度しか使えないのでリセット
     deferredPrompt = null;
     installBtn.style.display = 'none';
 });
@@ -86,14 +79,7 @@ function switchTab(mode) {
 }
 
 // --- 5. リスト表示の共通ロジック ---
-// 引数 songs: 表示する曲のリスト
-// 引数 showAddBtn: 「＋(プレイリストへ追加)」を表示するか
-function renderSongList(songs, showAddBtn) {
-    // フォルダ表示時は、ヘッダー（戻るボタン等）を残すため、全クリアせずにリスト部分だけ更新したい
-    // だが簡易実装のため、folderモードの時は loadSongsFromPlaylist 内で処理する
-    // ここでは主に 'all' モード用として使う、またはfolderモードの下請けとして使う
-    
-    // コンテナをクリアする場合（folderモード以外）
+function renderSongList(songs, showAddBtn, isInsidePlaylist = false) {
     if (currentViewMode === 'all') {
         mainView.innerHTML = '';
     }
@@ -112,27 +98,53 @@ function renderSongList(songs, showAddBtn) {
         const item = document.createElement('div');
         item.className = 'playlist-item';
         
-        // 再生中の曲をハイライト（IDで比較するほうが確実）
-        // ただし playlistData と表示順が一致している前提
+        // 再生中ハイライト
         if (playlistData[index] && playlistData[index].id === song.id && index === currentIndex) {
             item.classList.add('playing');
         }
 
+        // 曲名
         const nameSpan = document.createElement('span');
         nameSpan.className = 'song-name';
         nameSpan.textContent = song.name;
         nameSpan.addEventListener('click', () => {
-            // 現在のリストを再生対象にする
             playlistData = songs;
             playSongAtIndex(index);
-            // UI更新
             document.querySelectorAll('.playlist-item').forEach(el => el.classList.remove('playing'));
             item.classList.add('playing');
         });
-
         item.appendChild(nameSpan);
 
-        // 「＋」ボタン（プレイリストに追加）
+        // ボタン群エリア
+        const actionsDiv = document.createElement('div');
+        actionsDiv.className = 'item-actions';
+
+        // --- 並び替えボタン（プレイリスト内のみ） ---
+        if (isInsidePlaylist) {
+            // 上へボタン
+            const upBtn = document.createElement('button');
+            upBtn.textContent = '⬆️';
+            upBtn.className = 'order-btn';
+            if (index === 0) upBtn.disabled = true; // 先頭は押せない
+            upBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                movePlaylistSong(currentFolderId, index, -1); // -1 = 上へ
+            });
+            actionsDiv.appendChild(upBtn);
+
+            // 下へボタン
+            const downBtn = document.createElement('button');
+            downBtn.textContent = '⬇️';
+            downBtn.className = 'order-btn';
+            if (index === songs.length - 1) downBtn.disabled = true; // 末尾は押せない
+            downBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                movePlaylistSong(currentFolderId, index, 1); // 1 = 下へ
+            });
+            actionsDiv.appendChild(downBtn);
+        }
+
+        // --- プレイリストに追加ボタン（全曲タブのみ） ---
         if (showAddBtn) {
             const addBtn = document.createElement('button');
             addBtn.textContent = '➕';
@@ -141,10 +153,10 @@ function renderSongList(songs, showAddBtn) {
                 e.stopPropagation();
                 openAddToPlaylistModal(song.id);
             });
-            item.appendChild(addBtn);
+            actionsDiv.appendChild(addBtn);
         }
 
-        // 削除ボタン
+        // --- 削除ボタン ---
         const deleteBtn = document.createElement('button');
         deleteBtn.textContent = '🗑';
         deleteBtn.className = 'action-btn';
@@ -152,28 +164,47 @@ function renderSongList(songs, showAddBtn) {
             e.stopPropagation();
             handleDelete(song.id);
         });
-        item.appendChild(deleteBtn);
+        actionsDiv.appendChild(deleteBtn);
 
+        item.appendChild(actionsDiv);
         mainView.appendChild(item);
     });
 }
 
-// --- 6. 削除処理の分岐 ---
+// --- 6. 順番入れ替え・削除ロジック ---
+
+// 曲の順番変更
+function movePlaylistSong(playlistId, index, direction) {
+    const t = db.transaction(['playlists'], 'readwrite');
+    const store = t.objectStore('playlists');
+
+    store.get(playlistId).onsuccess = function(e) {
+        const pl = e.target.result;
+        if (!pl) return;
+
+        // 配列の要素を入れ替え
+        const songId = pl.songIds[index];
+        pl.songIds.splice(index, 1); // 一旦削除
+        pl.songIds.splice(index + direction, 0, songId); // 新しい位置に挿入
+
+        store.put(pl).onsuccess = function() {
+            loadSongsFromPlaylist(playlistId); // 再描画
+        };
+    };
+}
+
 function handleDelete(songId) {
     if (currentViewMode === 'all') {
-        // 全削除
         if (!confirm('この曲を端末から完全に削除しますか？')) return;
         const t = db.transaction(['songs'], 'readwrite');
         t.objectStore('songs').delete(songId).onsuccess = () => loadAllSongs();
     
     } else if (currentViewMode === 'folder' && currentFolderId) {
-        // プレイリストから除外
         if (!confirm('プレイリストから除外しますか？（曲データは消えません）')) return;
         removeSongFromPlaylist(currentFolderId, songId);
     }
 }
 
-// プレイリストからIDを除去する関数
 function removeSongFromPlaylist(playlistId, songId) {
     const transaction = db.transaction(['playlists'], 'readwrite');
     const store = transaction.objectStore('playlists');
@@ -181,18 +212,22 @@ function removeSongFromPlaylist(playlistId, songId) {
     store.get(playlistId).onsuccess = function(e) {
         const playlist = e.target.result;
         if (playlist) {
-            // IDを除外した新しい配列を作る
-            const newSongIds = playlist.songIds.filter(id => id !== songId);
-            
-            // 変更があれば保存
-            if (newSongIds.length !== playlist.songIds.length) {
-                playlist.songIds = newSongIds;
-                store.put(playlist).onsuccess = function() {
-                    // 画面を再読み込み
-                    loadSongsFromPlaylist(playlistId);
-                };
-            }
+            // IDを除外
+            playlist.songIds = playlist.songIds.filter(id => id !== songId);
+            store.put(playlist).onsuccess = function() {
+                loadSongsFromPlaylist(playlistId);
+            };
         }
+    };
+}
+
+// プレイリスト自体の削除
+function deletePlaylist(playlistId) {
+    if (!confirm('このプレイリストを削除しますか？（中の曲は消えません）')) return;
+    
+    const t = db.transaction(['playlists'], 'readwrite');
+    t.objectStore('playlists').delete(playlistId).onsuccess = function() {
+        loadPlaylistsView();
     };
 }
 
@@ -204,7 +239,8 @@ function loadAllSongs() {
     const store = transaction.objectStore('songs');
     store.getAll().onsuccess = function(e) {
         const songs = e.target.result;
-        renderSongList(songs, true); // true = ＋ボタンあり
+        // true = 追加ボタンあり, false = 順番ボタンなし
+        renderSongList(songs, true, false); 
     };
 }
 
@@ -231,15 +267,32 @@ function renderFolders(playlists) {
     playlists.forEach(pl => {
         const folder = document.createElement('div');
         folder.className = 'folder-item';
-        folder.innerHTML = `
+        
+        // フォルダ情報部分（クリックで開く）
+        const infoDiv = document.createElement('div');
+        infoDiv.style.display = 'flex';
+        infoDiv.style.alignItems = 'center';
+        infoDiv.style.flexGrow = '1';
+        infoDiv.innerHTML = `
             <div class="folder-icon">📂</div>
             <div class="folder-info">
                 <div style="font-weight:bold;">${pl.name}</div>
                 <div style="font-size:0.8rem; color:#888;">${pl.songIds.length}曲</div>
             </div>
-            <div style="font-size:1.5rem;">›</div>
         `;
-        folder.addEventListener('click', () => openPlaylistFolder(pl.id));
+        infoDiv.addEventListener('click', () => openPlaylistFolder(pl.id));
+        folder.appendChild(infoDiv);
+
+        // 削除ボタン（右端）
+        const delBtn = document.createElement('button');
+        delBtn.textContent = '🗑';
+        delBtn.className = 'delete-pl-btn';
+        delBtn.addEventListener('click', (e) => {
+            e.stopPropagation(); // フォルダが開くのを防ぐ
+            deletePlaylist(pl.id);
+        });
+        folder.appendChild(delBtn);
+
         mainView.appendChild(folder);
     });
 }
@@ -259,6 +312,7 @@ function loadSongsFromPlaylist(playlistId) {
         const playlist = e.target.result;
         if (!playlist) return;
 
+        // songIdsの順番通りに曲データを取得・並べる必要があります
         const promises = playlist.songIds.map(id => {
             return new Promise(resolve => {
                 songStore.get(id).onsuccess = (ev) => resolve(ev.target.result);
@@ -266,34 +320,31 @@ function loadSongsFromPlaylist(playlistId) {
         });
 
         Promise.all(promises).then(songs => {
-            // nullを除外
+            // 削除された曲などで undefined が混ざる可能性を除去
             const validSongs = songs.filter(s => s !== undefined);
             
             // 画面構築
             mainView.innerHTML = '';
             
-            // 戻るボタン
             const backBtn = document.createElement('button');
             backBtn.className = 'back-btn';
             backBtn.textContent = '← プレイリスト一覧に戻る';
             backBtn.addEventListener('click', () => switchTab('playlists'));
             mainView.appendChild(backBtn);
 
-            // ヘッダー
             const header = document.createElement('div');
             header.style.padding = '0 10px 10px';
             header.innerHTML = `<strong>📂 ${playlist.name}</strong> (${validSongs.length}曲)`;
             mainView.appendChild(header);
 
-            // リスト描画 (＋ボタンは非表示)
-            // ここでグローバルの mainView に追記させる形になる
-            renderSongList(validSongs, false);
+            // リスト描画 (追加ボタンなし, 順番ボタンあり)
+            renderSongList(validSongs, false, true);
         });
     };
 }
 
 
-// --- 8. 基本機能（再生・追加・モーダル） ---
+// --- 8. 基本機能 ---
 
 fileInput.addEventListener('change', function(event) {
     const file = event.target.files[0];
@@ -310,7 +361,6 @@ function playSongAtIndex(index) {
     currentIndex = index;
     const songInfo = playlistData[currentIndex];
 
-    // 再生時は常にsongsストアから最新のBlobを取る
     const t = db.transaction(['songs'], 'readonly');
     t.objectStore('songs').get(songInfo.id).onsuccess = function(e) {
         const song = e.target.result;
@@ -325,9 +375,7 @@ function playSongAtIndex(index) {
             playAudio();
             setupMediaSession(song.name);
             
-            // 再生中表示の更新
             document.querySelectorAll('.playlist-item').forEach((el, idx) => {
-               // 簡易的にindexで比較（リストの並び順が変わっていない前提）
                if(idx === index) el.classList.add('playing');
                else el.classList.remove('playing');
             });
