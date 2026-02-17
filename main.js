@@ -10,9 +10,9 @@ const playlistDiv = document.getElementById('playlist');
 let db;
 let currentObjectUrl = null;
 
-// 【重要】プレイリスト管理用の変数
-let playlistData = []; // 曲のリスト（IDと名前だけ持つ軽量なリスト）
-let currentIndex = -1; // 今何番目の曲を再生しているか（0スタート）
+// プレイリスト管理用の変数
+let playlistData = []; 
+let currentIndex = -1; 
 
 // --- 2. データベース初期化 ---
 const request = indexedDB.open('MusicPlayerDB', 1);
@@ -27,7 +27,7 @@ request.onupgradeneeded = function(event) {
 request.onsuccess = function(event) {
     db = event.target.result;
     console.log('DB接続成功');
-    loadPlaylist(); // アプリ起動時にリストを読み込む
+    loadPlaylist(); 
 };
 
 request.onerror = function() {
@@ -46,7 +46,6 @@ fileInput.addEventListener('change', function(event) {
     const addRequest = store.add(songData);
 
     addRequest.onsuccess = function() {
-        // 保存したらリストを再読み込み
         loadPlaylist();
     };
 
@@ -61,12 +60,7 @@ function loadPlaylist() {
 
     getAllRequest.onsuccess = function() {
         const songs = getAllRequest.result;
-        
-        // 【重要】重いデータ(blob)はメモリに常駐させず、必要な情報だけ配列に入れる
-        // ここでは将来の拡張性を考えて、一旦全データを渡していますが、
-        // 再生時には再度DBからBlobを取る方式にします。
         playlistData = songs;
-
         renderPlaylist();
     };
 }
@@ -79,12 +73,10 @@ function renderPlaylist() {
         return;
     }
 
-    // 配列(playlistData)の中身を順番に処理
     playlistData.forEach(function(song, index) {
         const item = document.createElement('div');
         item.className = 'playlist-item';
 
-        // 再生中の曲なら色を変える
         if (index === currentIndex) {
             item.classList.add('playing');
         }
@@ -93,7 +85,6 @@ function renderPlaylist() {
         nameSpan.className = 'song-name';
         nameSpan.textContent = song.name;
         
-        // 【重要】クリックしたら「この番号(index)の曲を再生して」と指示する
         nameSpan.addEventListener('click', () => {
             playSongAtIndex(index);
         });
@@ -112,22 +103,16 @@ function renderPlaylist() {
     });
 }
 
-// --- 5. 指定した番号の曲を再生する機能 ---
+// --- 5. 指定した番号の曲を再生する機能（通知バー操作を追加！） ---
 function playSongAtIndex(index) {
-    // 範囲外のチェック（リストの最後を超えたら停止）
     if (index < 0 || index >= playlistData.length) {
         console.log("再生リストの範囲外です。停止します。");
         return;
     }
 
-    // インデックスを更新
     currentIndex = index;
-
-    // 再生する曲の情報を配列から取得
     const songInfo = playlistData[currentIndex];
 
-    // DBから「その曲の音楽データ(blob)」を取りに行く
-    // ※配列にはblobを持たせていない（メモリ節約）ため
     const transaction = db.transaction(['songs'], 'readonly');
     const store = transaction.objectStore('songs');
     const getRequest = store.get(songInfo.id);
@@ -146,42 +131,67 @@ function playSongAtIndex(index) {
             songTitle.textContent = song.name;
             audioPlayer.src = fileUrl;
             
-            // UI更新（再生中の曲を目立たせる）
-            renderPlaylist(); // リストを再描画して色を更新
+            renderPlaylist(); 
             playBtn.disabled = false;
             
+            // 再生開始
             playAudio();
+
+            // ▼▼▼ ここからがステップ4の追加部分 ▼▼▼
+            // Media Session API: Androidの通知バーやロック画面を設定する
+            if ('mediaSession' in navigator) {
+                
+                // 1. 通知バーに表示するタイトルやアーティスト名
+                navigator.mediaSession.metadata = new MediaMetadata({
+                    title: song.name,
+                    artist: 'My Player',
+                    album: 'Local Music'
+                    // artwork: [{ src: 'icon.png', sizes: '512x512', type: 'image/png' }] // アイコンがあれば有効化
+                });
+
+                // 2. 通知バーのボタンを押した時の動きを設定
+                
+                // 再生ボタン
+                navigator.mediaSession.setActionHandler('play', function() {
+                    playAudio();
+                });
+                
+                // 一時停止ボタン
+                navigator.mediaSession.setActionHandler('pause', function() {
+                    pauseAudio();
+                });
+
+                // 前の曲へ
+                navigator.mediaSession.setActionHandler('previoustrack', function() {
+                    if (currentIndex > 0) {
+                        playSongAtIndex(currentIndex - 1);
+                    }
+                });
+
+                // 次の曲へ
+                navigator.mediaSession.setActionHandler('nexttrack', function() {
+                    if (currentIndex < playlistData.length - 1) {
+                        playSongAtIndex(currentIndex + 1);
+                    }
+                });
+            }
+            // ▲▲▲ ここまで追加 ▲▲▲
         }
     };
 }
 
 // --- 6. 連続再生の制御 ---
-// 曲が終わった時に呼ばれるイベント
 audioPlayer.addEventListener('ended', function() {
-    // ループONの場合（audioPlayer.loop = true）は、
-    // ブラウザが勝手にリピートするので、ここには来ない（または無視される）。
-    // ループOFFの場合だけここに来る。
-
-    // 次の曲へ進む
+    // ループOFFの時だけ次の曲へ
     const nextIndex = currentIndex + 1;
-
-    // 次の曲があるかチェック
     if (nextIndex < playlistData.length) {
-        // 次の曲を再生
         playSongAtIndex(nextIndex);
     } else {
-        // 最後の曲だったので停止状態にする
         playBtn.textContent = '▶️';
-        console.log('全曲再生終了');
-        
-        // 最初に戻したい場合はここを有効にする
-        // playSongAtIndex(0); 
-        // pauseAudio(); // 止めておく
     }
 });
 
-// --- 7. 基本操作（再生・停止・削除・ループ） ---
-
+// --- 7. 基本操作 ---
 playBtn.addEventListener('click', function() {
     if (audioPlayer.paused) {
         playAudio();
@@ -200,14 +210,13 @@ function pauseAudio() {
     playBtn.textContent = '▶️';
 }
 
-// ループボタン（1曲リピート）
 loopBtn.addEventListener('click', function() {
     audioPlayer.loop = !audioPlayer.loop;
     if (audioPlayer.loop) {
-        loopBtn.textContent = '🔁 ON'; // 1曲リピート中
+        loopBtn.textContent = '🔁 ON';
         loopBtn.classList.add('active-loop');
     } else {
-        loopBtn.textContent = '🔁 OFF'; // リピートなし（次は次の曲へ）
+        loopBtn.textContent = '🔁 OFF';
         loopBtn.classList.remove('active-loop');
     }
 });
@@ -220,9 +229,6 @@ function deleteSong(id) {
     const deleteRequest = store.delete(id);
 
     deleteRequest.onsuccess = function() {
-        // もし再生中の曲を消したら停止するなどの処理が必要だが、
-        // まずはシンプルにリスト更新のみ行う
-        // もし現在再生中の曲より前の曲を消すとindexがズレるが、次回再生時に直る
         loadPlaylist();
     };
 }

@@ -5,29 +5,38 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>My Music Player</title>
     <link rel="stylesheet" href="style.css">
+    
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#1a1a1a">
 </head>
 <body>
 
     <div class="player-container">
         <h2 id="song-title">曲を選択してください</h2>
-
         <div class="controls">
             <button id="loop-btn" class="btn-small">🔁 OFF</button>
             <button id="play-btn" class="btn-large" disabled>▶️</button>
         </div>
-
-        <div id="playlist" class="playlist-container">
-            <p style="color: #888;">保存された曲はありません</p>
-        </div>
-
+        <div id="playlist" class="playlist-container"></div>
         <div class="file-input-wrapper">
             <label for="file-input" class="add-music-btn">➕ 曲を追加保存</label>
             <input type="file" id="file-input" accept="audio/*" style="display: none;">
         </div>
-
         <audio id="audio-player"></audio>
     </div>
 
     <script src="main.js"></script>
+
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function() {
+                navigator.serviceWorker.register('./sw.js').then(function(registration) {
+                    console.log('ServiceWorker登録成功:', registration.scope);
+                }, function(err) {
+                    console.log('ServiceWorker登録失敗:', err);
+                });
+            });
+        }
+    </script>
 </body>
 </html>
