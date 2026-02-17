@@ -13,12 +13,16 @@
 
         <div class="controls">
             <button id="loop-btn" class="btn-small">🔁 OFF</button>
-            
             <button id="play-btn" class="btn-large" disabled>▶️</button>
         </div>
 
+        <div id="playlist" class="playlist-container">
+            <p style="color: #888;">保存された曲はありません</p>
+        </div>
+
         <div class="file-input-wrapper">
-            <input type="file" id="file-input" accept="audio/*">
+            <label for="file-input" class="add-music-btn">➕ 曲を追加保存</label>
+            <input type="file" id="file-input" accept="audio/*" style="display: none;">
         </div>
 
         <audio id="audio-player"></audio>

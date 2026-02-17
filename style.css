@@ -1,85 +1,111 @@
-/* アプリ全体の基本設定 */
 body {
     margin: 0;
     padding: 0;
-    background-color: #1a1a1a; /* ダークモードっぽい黒っぽい背景 */
-    color: #ffffff; /* 文字は白 */
-    font-family: sans-serif; /* スマホ標準のゴシック体 */
-    height: 100vh; /* 画面の高さいっぱいに広げる */
+    background-color: #1a1a1a;
+    color: #ffffff;
+    font-family: sans-serif;
+    height: 100vh;
     display: flex;
-    justify-content: center; /* 横方向の真ん中寄せ */
-    align-items: center; /* 縦方向の真ん中寄せ */
+    justify-content: center;
+    align-items: center;
 }
 
-/* プレーヤーの枠組み */
 .player-container {
     text-align: center;
-    width: 90%; /* スマホの画面幅の90%を使う */
-    max-width: 400px; /* パソコンで見ても広がりすぎないようにする */
+    width: 90%;
+    max-width: 400px;
+    height: 90vh; /* 画面の高さの90%を使う */
+    display: flex;
+    flex-direction: column; /* 縦並びにする */
 }
 
-/* 曲名のデザイン */
 #song-title {
     font-size: 1.2rem;
     margin-bottom: 20px;
-    word-wrap: break-word; /* 長い曲名は折り返す */
+    min-height: 1.5em; /* 文字がなくても高さを確保 */
 }
 
-/* ボタンを並べるエリア */
 .controls {
     display: flex;
     justify-content: center;
     align-items: center;
-    gap: 20px; /* ボタン同士の間隔 */
-    margin-bottom: 30px;
+    gap: 20px;
+    margin-bottom: 20px;
 }
 
-/* ボタンの共通デザイン */
 button {
     background-color: #333;
     color: white;
     border: none;
-    border-radius: 50%; /* まん丸にする */
+    border-radius: 50%;
     cursor: pointer;
-    transition: background 0.2s; /* 押した時にふわっと色を変える */
+    transition: background 0.2s;
 }
 
-/* 押した時（アクティブ）のデザイン */
 button:active {
     background-color: #555;
 }
 
-/* 再生ボタン（大きくする） */
-.btn-large {
-    width: 80px;
-    height: 80px;
-    font-size: 30px;
-}
+.btn-large { width: 80px; height: 80px; font-size: 30px; }
+.btn-small { width: 60px; height: 60px; font-size: 14px; border-radius: 30px; }
+.active-loop { background-color: #1db954; color: #000; }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
 
-/* ループボタン（少し小さく） */
-.btn-small {
-    width: 60px;
-    height: 60px;
-    font-size: 14px;
-    border-radius: 30px; /* 丸角の四角 */
-}
+/* --- ここから下が新しく追加したリスト用CSS --- */
 
-/* ループONの時の特別な色（緑色にする） */
-.active-loop {
-    background-color: #1db954; /* Spotifyっぽい緑 */
-    color: #000;
-}
-
-/* まだ押せない状態のデザイン */
-button:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-}
-
-/* ファイル選択エリア */
-.file-input-wrapper {
-    margin-top: 20px;
-    padding: 10px;
-    background-color: #2a2a2a;
+/* リスト全体の設定 */
+.playlist-container {
+    flex-grow: 1; /* 余ったスペースを全部使う */
+    overflow-y: auto; /* 曲が増えたらスクロールする */
+    background-color: #222;
     border-radius: 10px;
+    padding: 10px;
+    margin-bottom: 20px;
+    text-align: left;
+}
+
+/* リストの1行ごとの設定 */
+.playlist-item {
+    display: flex;
+    justify-content: space-between; /* 曲名と削除ボタンを左右に離す */
+    align-items: center;
+    padding: 10px;
+    border-bottom: 1px solid #333;
+    cursor: pointer;
+}
+
+/* 再生中の曲を目立たせる */
+.playlist-item.playing {
+    background-color: #333;
+    color: #1db954; /* 緑色 */
+    font-weight: bold;
+}
+
+/* 曲名部分 */
+.song-name {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis; /* 長すぎたら...にする */
+    max-width: 70%;
+}
+
+/* 削除ボタン */
+.delete-btn {
+    background-color: #d32f2f; /* 赤色 */
+    width: 30px;
+    height: 30px;
+    border-radius: 5px;
+    font-size: 12px;
+    margin-left: 10px;
+}
+
+/* 追加ボタンのデザイン */
+.add-music-btn {
+    display: inline-block;
+    padding: 10px 20px;
+    background-color: #1db954;
+    color: white;
+    border-radius: 20px;
+    cursor: pointer;
+    font-weight: bold;
 }
