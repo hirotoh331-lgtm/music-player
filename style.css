@@ -1,0 +1,85 @@
+/* アプリ全体の基本設定 */
+body {
+    margin: 0;
+    padding: 0;
+    background-color: #1a1a1a; /* ダークモードっぽい黒っぽい背景 */
+    color: #ffffff; /* 文字は白 */
+    font-family: sans-serif; /* スマホ標準のゴシック体 */
+    height: 100vh; /* 画面の高さいっぱいに広げる */
+    display: flex;
+    justify-content: center; /* 横方向の真ん中寄せ */
+    align-items: center; /* 縦方向の真ん中寄せ */
+}
+
+/* プレーヤーの枠組み */
+.player-container {
+    text-align: center;
+    width: 90%; /* スマホの画面幅の90%を使う */
+    max-width: 400px; /* パソコンで見ても広がりすぎないようにする */
+}
+
+/* 曲名のデザイン */
+#song-title {
+    font-size: 1.2rem;
+    margin-bottom: 20px;
+    word-wrap: break-word; /* 長い曲名は折り返す */
+}
+
+/* ボタンを並べるエリア */
+.controls {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 20px; /* ボタン同士の間隔 */
+    margin-bottom: 30px;
+}
+
+/* ボタンの共通デザイン */
+button {
+    background-color: #333;
+    color: white;
+    border: none;
+    border-radius: 50%; /* まん丸にする */
+    cursor: pointer;
+    transition: background 0.2s; /* 押した時にふわっと色を変える */
+}
+
+/* 押した時（アクティブ）のデザイン */
+button:active {
+    background-color: #555;
+}
+
+/* 再生ボタン（大きくする） */
+.btn-large {
+    width: 80px;
+    height: 80px;
+    font-size: 30px;
+}
+
+/* ループボタン（少し小さく） */
+.btn-small {
+    width: 60px;
+    height: 60px;
+    font-size: 14px;
+    border-radius: 30px; /* 丸角の四角 */
+}
+
+/* ループONの時の特別な色（緑色にする） */
+.active-loop {
+    background-color: #1db954; /* Spotifyっぽい緑 */
+    color: #000;
+}
+
+/* まだ押せない状態のデザイン */
+button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* ファイル選択エリア */
+.file-input-wrapper {
+    margin-top: 20px;
+    padding: 10px;
+    background-color: #2a2a2a;
+    border-radius: 10px;
+}
