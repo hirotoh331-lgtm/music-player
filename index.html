@@ -13,14 +13,29 @@
 
     <div class="player-container">
         <h2 id="song-title">曲を選択してください</h2>
+        
         <div class="controls">
             <button id="loop-btn" class="btn-small">🔁 OFF</button>
             <button id="play-btn" class="btn-large" disabled>▶️</button>
         </div>
+        
         <div id="playlist" class="playlist-container"></div>
+        
         <div class="file-input-wrapper">
             <label for="file-input" class="add-music-btn">➕ 曲を追加保存</label>
             <input type="file" id="file-input" accept="audio/*" style="display: none;">
+        </div>
+
+        <div style="margin-top: 20px; border-top: 1px solid #555; padding-top: 10px;">
+            <h3 style="font-size: 1rem; margin: 0 0 10px 0;">プレイリスト機能テスト</h3>
+            <div style="display: flex; gap: 10px; justify-content: center;">
+                <button onclick="createNewPlaylist(prompt('プレイリスト名を入力:'))" class="btn-small" style="width:auto; border-radius:5px; padding:5px 15px; font-size: 12px;">
+                    新規作成
+                </button>
+                <button onclick="showAllPlaylists()" class="btn-small" style="width:auto; border-radius:5px; padding:5px 15px; font-size: 12px;">
+                    一覧確認(コンソール)
+                </button>
+            </div>
         </div>
         <audio id="audio-player"></audio>
     </div>
